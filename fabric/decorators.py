@@ -76,3 +76,17 @@ def runs_once(func):
             decorated.has_run = True
             return func(*args, **kwargs)
     return decorated
+
+
+def hide(func):
+    """
+    Decorator preventing wrapped function from being callable by ``fab``,
+    and it will no longer show up in the list of commands gathered by
+    ``fab --list``.
+    """
+    @wraps(func)
+    def decorated(*args, **kwargs):
+        func(*args, **kwargs)
+    decorated.hide_from_fabric = True
+    return decorated
+hide.hide_from_fabric = True

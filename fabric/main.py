@@ -114,10 +114,12 @@ def is_task(tup):
     Takes (name, object) tuple, returns True if it's a non-Fab public callable.
     """
     name, func = tup
+    hidden = hasattr(func, "hide_from_fabric") and func.hide_from_fabric
     return (
         callable(func)
         and (func not in _internals)
         and not name.startswith('_')
+        and not hidden
     )
 
 
