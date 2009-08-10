@@ -7,6 +7,7 @@ import re
 import socket
 import sys
 from optparse import make_option
+from operator import add
 
 from fabric.utils import abort
 from fabric.network import HostConnectionCache
@@ -216,7 +217,24 @@ env_options = [
 # such as global deep/broad mode, host lists, username etc.
 # Most default values are specified in `env_options` above, in the interests of
 # preserving DRY.
-env = _AttributeDict({
+
+class _EnvironmentDict(_AttributeDict):
+
+    def _get_hosts(self):
+        if self.roles:
+            role_hosts = (
+                reduce(add, [self.roledefs.get(y) for y in self.roles])
+                or []
+            )
+        self._hosts = list(set(self._hosts + role_hosts))
+        return self._hosts
+
+    def _set_hosts(self, hosts):
+        self._hosts = hosts
+
+    hosts = property(_get_hosts, _set_hosts)
+
+env = _EnvironmentDict({
     # Version number for --version
     'version': get_version(),
     'sudo_prompt': 'sudo password:',

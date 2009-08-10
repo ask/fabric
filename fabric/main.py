@@ -362,7 +362,7 @@ def get_hosts(command, cli_hosts, cli_roles):
     # the CLI or from module-level code). This will be the empty list if these
     # have not been set -- which is fine, this method should return an empty
     # list if no hosts have been set anywhere.
-    return _merge(state.env['hosts'], state.env['roles'])
+    return state.env.hosts
 
 
 def update_output_levels(show, hide):
