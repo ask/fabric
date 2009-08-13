@@ -221,6 +221,9 @@ env_options = [
 class _EnvironmentDict(_AttributeDict):
 
     def _get_hosts(self):
+
+        self._hosts = self.get("_hosts", [])
+
         if self.roles:
             role_hosts = (
                 reduce(add, [self.roledefs.get(y) for y in self.roles])
