@@ -229,7 +229,7 @@ class _EnvironmentDict(_AttributeDict):
                 reduce(add, [self.roledefs.get(y) for y in self.roles])
                 or []
             )
-        self._hosts = list(set(self._hosts + role_hosts))
+            self._hosts = list(set(self._hosts + role_hosts))
         return self._hosts
 
     def _set_hosts(self, hosts):
