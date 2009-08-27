@@ -157,7 +157,11 @@ def load_fabfile(path):
         del sys.path[0]
     # Return dictionary of callables only (and don't include Fab operations or
     # underscored callables)
-    return dict(filter(is_task, vars(imported).items()))
+    return imported
+
+
+def load_fabfile_commands(fabfile_module):
+    return dict(filter(is_task, vars(fabfile_module).items()))
 
 
 def parse_options():
@@ -382,6 +386,33 @@ def update_output_levels(show, hide):
             state.output[key] = False
 
 
+def resolve_submodule_command(command, module):
+    path = command.split(".")
+
+    prev = module
+    for attr in path:
+        prev = getattr(prev, attr, None)
+    return prev
+
+
+def _resolve_command(command, module):
+    if "." in command:
+        fun = resolve_submodule_command(command, module)
+    else:
+        fun = getattr(module, command, None)
+
+    if is_task((command, fun)):
+        return fun
+
+
+_command_cache = {}
+def resolve_command(command, module):
+    if command not in _command_cache:
+        _command_cache[command] = _resolve_command(command, module)
+    return _command_cache[command]
+
+
+
 def main():
     """
     Main command-line execution loop.
@@ -423,11 +454,15 @@ def main():
         # Load fabfile (which calls its module-level code, including
         # tweaks to env values) and put its commands in the shared commands
         # dict
-        commands.update(load_fabfile(fabfile))
+        fabfile_module = load_fabfile(fabfile)
+        commands.update(load_fabfile_commands(fabfile_module))
 
         # Abort if no commands found
-        if not commands:
+        # XXX How do we do this with dot separated commands?
+        """
+        if not commands: 
             abort("Fabfile didn't contain any commands!")
+        """
 
         # Now that we're settled on a fabfile, inform user.
         if state.output.debug:
@@ -450,10 +485,8 @@ def main():
         commands_to_run = parse_arguments(arguments)
 
         # Figure out if any specified names are invalid
-        unknown_commands = []
-        for tup in commands_to_run:
-            if tup[0] not in commands:
-                unknown_commands.append(tup[0])
+        unknown_commands = [tup[0] for tup in commands_to_run
+                              if not resolve_command(tup[0], fabfile_module)]
 
         # Abort if any unknown commands were specified
         if unknown_commands:
@@ -463,7 +496,7 @@ def main():
         # At this point all commands must exist, so execute them in order.
         for name, args, kwargs, cli_hosts, cli_roles in commands_to_run:
             # Get callable by itself
-            command = commands[name]
+            command = resolve_command(name, fabfile_module)
             # Set current command name (used for some error messages)
             state.env.command = name
             # Set host list (also copy to env)
@@ -479,12 +512,12 @@ def main():
                 state.env.user = username
                 state.env.port = port
                 # Actually run command
-                commands[name](*args, **kwargs)
+                command(*args, **kwargs)
                 # Put old user back
                 state.env.user = prev_user
             # If no hosts found, assume local-only and run once
             if not hosts:
-                commands[name](*args, **kwargs)
+                command(*args, **kwargs)
         # If we got here, no errors occurred, so print a final note.
         if state.output.status:
             print("\nDone.")
