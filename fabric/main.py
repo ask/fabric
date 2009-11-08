@@ -13,14 +13,13 @@ from operator import add
 from optparse import OptionParser
 import os
 import sys
-import textwrap
 
 from fabric import api # For checking callables against the API 
 from fabric.contrib import console, files, project # Ditto
-from network import denormalize, normalize
-import state # For easily-mockable access to roles, env and etc
-from state import commands, connections, env_options, win32
-from utils import abort, indent, warn
+from fabric.network import denormalize, normalize
+from fabric import state # For easily-mockable access to roles, env and etc
+from fabric.state import commands, connections, env_options
+from fabric.utils import abort, indent
 
 
 # One-time calculation of "all internal callables" to avoid doing this on every
@@ -34,6 +33,8 @@ _internals = reduce(lambda x, y: x + filter(callable, vars(y).values()),
 def load_settings(path):
     """
     Take given file path and return dictionary of any key=value pairs found.
+
+    Usage docs are in docs/usage/fab.rst, in "Settings files."
     """
     if os.path.exists(path):
         comments = lambda s: s and not s.startswith("#")
@@ -58,28 +59,7 @@ def find_fabfile():
     """
     Attempt to locate a fabfile, either explicitly or by searching parent dirs.
 
-    Uses the value of ``env.fabfile``, which defaults to ``fabfile``,
-    as the target of the search. This may be overridden on the command line or
-    in a ``.fabricrc`` file.
-
-    If ``env.fabfile`` contains path elements other than a filename (e.g.
-    ``../fabfile.py`` or ``dir1/dir2/other.py``) it will be treated as a file
-    path and directly checked for existence without any sort of searching. When
-    in this mode, tile-expansion will be applied, so one may refer to e.g.
-    ``~/special_fabfile.py``.
-
-    Either way, `find_fabfile` will return an absolute path if a file is found,
-    or None otherwise.
-
-    If ``env.fabfile`` does not end with ``.py``, this function will search
-    for both the literal value of ``env.fabfile`` **and** that value suffixed
-    with ``.py``. Thus, by default, it will be capable of locating a
-    file/module named ``fabfile.py``, or a directory/package named ``fabfile``.
-
-    In this situation, the explicitly given name is searched for first,
-    followed by the suffixed version; this search is breadth-first, meaning it
-    will attempt to find both versions in the current directory before
-    traveling upwards.
+    Usage docs are in docs/usage/fabfiles.rst, in "Fabfile discovery."
     """
     # Obtain env value
     names = [state.env.fabfile]
@@ -221,6 +201,9 @@ def parse_options():
 
 
 def list_commands():
+    """
+    Print all found commands/tasks, then exit. Invoked with -l/--list.
+    """
     print("Available commands:\n")
     # Want separator between name, description to be straight col
     max_len = reduce(lambda a, b: max(a, len(b)), commands.keys(), 0)
@@ -247,6 +230,9 @@ def list_commands():
 
 
 def display_command(command):
+    """
+    Print command function's docstring, then exit. Invoked with -d/--display.
+    """
     # Sanity check
     if command not in commands:
         abort("Command '%s' not found, exiting." % command)
@@ -267,41 +253,7 @@ def parse_arguments(arguments):
     """
     Parse string list into list of tuples: command, args, kwargs, hosts, roles.
 
-    Parses the given list of arguments into command names and, optionally,
-    per-command args/kwargs. Per-command args are attached to the command name
-    with a colon (``:``), are comma-separated, and may use a=b syntax for
-    kwargs.  These args/kwargs are passed into the resulting command as normal
-    Python args/kwargs.
-
-    For example::
-
-        $ fab do_stuff:a,b,c=d
-
-    will result in the function call ``do_stuff(a, b, c=d)``.
-
-    If ``host`` or ``hosts`` kwargs are given, they will be used to fill
-    Fabric's host list (see `get_hosts`). ``hosts`` will override
-    ``host`` if both are given.
-
-    When using ``hosts`` in this way, one must use semicolons (``;``), and must
-    thus quote the host list string to prevent shell interpretation.
-
-    For example::
-
-        $ fab ping_servers:hosts="a;b;c",foo=bar
-
-    will result in Fabric's host list for the ``ping_servers`` command being set
-    to ``['a', 'b', 'c']``.
-    
-    ``host`` and ``hosts`` are removed from the kwargs mapping at this point, so
-    commands are not required to expect them. Thus, the resulting call of the
-    above example would be ``ping_servers(foo=bar)``.
-
-    ``role`` or ``roles`` behave the same as ``host``/``hosts``, but are used
-    as role names (which will eventually be turned into additional hosts).
-
-    Host- and role-related arguments may be specified simultaneously, in which
-    case they will be merged into a single effective host list.
+    See docs/usage/fab.rst, section on "per-task arguments" for details.
     """
     cmds = []
     for cmd in arguments:
@@ -333,16 +285,32 @@ def parse_arguments(arguments):
     return cmds
 
 
+def parse_remainder(arguments):
+    """
+    Merge list of "remainder arguments" into a single command string.
+    """
+    return ' '.join(arguments)
+
+
 def _merge(hosts, roles):
     """
     Merge given host and role lists into one list of deduped hosts.
     """
+    # Abort if any roles don't exist
+    bad_roles = [x for x in roles if x not in state.env.roledefs]
+    if bad_roles:
+        abort("The following specified roles do not exist:\n%s" % (
+            indent(bad_roles)
+        ))
+
     # Look up roles, turn into flat list of hosts
-    role_hosts = (
-        roles
-        and reduce(add, [state.env.roledefs[y] for y in roles])
-        or []
-    )
+    role_hosts = []
+    for role in roles:
+        value = state.env.roledefs[role]
+        # Handle "lazy" roles (callables)
+        if callable(value):
+            value = value()
+        role_hosts += value
     # Return deduped combo of hosts and role_hosts
     return list(set(hosts + role_hosts))
 
@@ -421,6 +389,10 @@ def main():
         # Parse command line options
         parser, options, arguments = parse_options()
 
+        # Handle regular args vs -- args
+        arguments = parser.largs
+        remainder_arguments = parser.rargs
+
         # Update env with any overridden option values
         # NOTE: This needs to remain the first thing that occurs
         # post-parsing, since so many things hinge on the values in env.
@@ -457,13 +429,6 @@ def main():
         fabfile_module = load_fabfile(fabfile)
         commands.update(load_fabfile_commands(fabfile_module))
 
-        # Abort if no commands found
-        # XXX How do we do this with dot separated commands?
-        """
-        if not commands: 
-            abort("Fabfile didn't contain any commands!")
-        """
-
         # Now that we're settled on a fabfile, inform user.
         if state.output.debug:
             print("Using fabfile '%s'" % fabfile)
@@ -477,7 +442,7 @@ def main():
             display_command(options.display)
 
         # If user didn't specify any commands to run, show help
-        if not arguments:
+        if not (arguments or remainder_arguments):
             parser.print_help()
             sys.exit(0) # Or should it exit with error (1)?
 
@@ -487,11 +452,19 @@ def main():
         # Figure out if any specified names are invalid
         unknown_commands = [tup[0] for tup in commands_to_run
                               if not resolve_command(tup[0], fabfile_module)]
+        # Parse remainders into a faux "command" to execute
+        remainder_command = parse_remainder(remainder_arguments)
 
         # Abort if any unknown commands were specified
         if unknown_commands:
             abort("Command(s) not found:\n%s" \
                 % indent(unknown_commands))
+
+        # Generate remainder command and insert into commands, commands_to_run
+        if remainder_command:
+            r = '<remainder>'
+            commands[r] = lambda: api.run(remainder_command)
+            commands_to_run.append((r, [], {}, [], []))
 
         # At this point all commands must exist, so execute them in order.
         for name, args, kwargs, cli_hosts, cli_roles in commands_to_run:
@@ -511,6 +484,9 @@ def main():
                 prev_user = state.env.user
                 state.env.user = username
                 state.env.port = port
+                # Log to stdout
+                if state.output.running:
+                    print("[%s] Executing task '%s'" % (host, name))
                 # Actually run command
                 command(*args, **kwargs)
                 # Put old user back
@@ -526,7 +502,7 @@ def main():
         raise
     except KeyboardInterrupt:
         if state.output.status:
-            print >>sys.stderr, "\nStopped."
+            print >> sys.stderr, "\nStopped."
         sys.exit(1)
     except:
         sys.excepthook(*sys.exc_info())

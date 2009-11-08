@@ -6,6 +6,7 @@ from __future__ import with_statement
 
 import tempfile
 import re
+import os
 
 from fabric.api import *
 
@@ -22,14 +23,14 @@ def exists(path, use_sudo=False, verbose=False):
     behavior.
     """
     func = use_sudo and sudo or run
-    cmd = 'ls -d --color=never %s' % path
+    cmd = 'test -e "%s"' % path
     # If verbose, run normally
     if verbose:
         with settings(warn_only=True):
-            return func(cmd)
+            return not func(cmd).failed
     # Otherwise, be quiet
     with settings(hide('everything'), warn_only=True):
-        return func(cmd)
+        return not func(cmd).failed
 
 
 def first(*args, **kwargs):
@@ -68,24 +69,35 @@ def upload_template(filename, destination, context=None, use_jinja=False,
     By default, the file will be copied to ``destination`` as the logged-in
     user; specify ``use_sudo=True`` to use `sudo` instead.
     """
-    with tempfile.NamedTemporaryFile() as output:
-        # Init
-        text = None
-        if use_jinja:
-            try:
-                from jinja2 import Environment, FileSystemLoader
-                env = Environment(loader=FileSystemLoader(template_dir or '.'))
-                text = env.get_template(filename).render(**context or {})
-            except ImportError, e:
-                abort("tried to use Jinja2 but was unable to import: %s" % e)
-        else:
-            with open(filename) as inputfile:
-                text = inputfile.read()
-            if context:
-                text = text % context
-        output.write(text)
-        output.flush()
-        put(output.name, "/tmp/" + filename)
+    basename = os.path.basename(filename)
+    temp_destination = '/tmp/' + basename
+
+    # This temporary file should not be automatically deleted on close, as we
+    # need it there to upload it (Windows locks the file for reading while open).
+    tempfile_fd, tempfile_name = tempfile.mkstemp()
+    output = open(tempfile_name, "w+b")
+    # Init
+    text = None
+    if use_jinja:
+        try:
+            from jinja2 import Environment, FileSystemLoader
+            jenv = Environment(loader=FileSystemLoader(template_dir or '.'))
+            text = jenv.get_template(filename).render(**context or {})
+        except ImportError, e:
+            abort("tried to use Jinja2 but was unable to import: %s" % e)
+    else:
+        with open(filename) as inputfile:
+            text = inputfile.read()
+        if context:
+            text = text % context
+    output.write(text)
+    output.close()
+
+    # Upload the file.
+    put(tempfile_name, temp_destination)
+    os.close(tempfile_fd)
+    os.remove(tempfile_name)
+
     func = use_sudo and sudo or run
     # Back up any original file (need to do figure out ultimate destination)
     to_backup = destination
@@ -93,11 +105,11 @@ def upload_template(filename, destination, context=None, use_jinja=False,
         # Is destination a directory?
         if func('test -f %s' % to_backup).failed:
             # If so, tack on the filename to get "real" destination
-            to_backup = destination + '/' + filename
+            to_backup = destination + '/' + basename
     if exists(to_backup):
         func("cp %s %s.bak" % (to_backup, to_backup))
     # Actually move uploaded template to destination
-    func("mv /tmp/%s %s" % (filename, destination))
+    func("mv %s %s" % (temp_destination, destination))
 
 
 def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
@@ -202,7 +214,7 @@ def comment(filename, regex, use_sudo=False, char='#', backup='.bak'):
     )
 
 
-def contains(text, filename, exact=False, use_sudo=False):
+def contains(filename, text, exact=False, use_sudo=False):
     """
     Return True if ``filename`` contains ``text``.
 
@@ -227,7 +239,7 @@ def contains(text, filename, exact=False, use_sudo=False):
         ))
 
 
-def append(text, filename, use_sudo=False):
+def append(filename, text, use_sudo=False):
     """
     Append string (or list of strings) ``text`` to ``filename``.
 
@@ -249,7 +261,8 @@ def append(text, filename, use_sudo=False):
     if isinstance(text, str):
         text = [text]
     for line in text:
-        if (contains('^' + re.escape(line), filename, use_sudo=use_sudo)
-            and line):
+        if (contains(filename, '^' + re.escape(line), use_sudo=use_sudo)
+            and line
+            and exists(filename)):
             continue
         func("echo '%s' >> %s" % (line.replace("'", r'\''), filename))

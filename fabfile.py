@@ -9,20 +9,28 @@ from fabric.contrib.project import rsync_project
 import fabric.version
 
 
-def test():
+def test(args=None):
     """
     Run all unit tests and doctests.
+
+    Specify string argument ``args`` for additional args to ``nosetests``.
     """
-    # Need show_stderr=True because the interesting output of nosetests is
-    # actually sent to stderr, not stdout.
-    print(local('nosetests -sv --with-doctest', capture=False))
+    if args is None:
+        args = ""
+    print(local('nosetests -sv --with-doctest %s' % args, capture=False))
 
 
-def build_docs():
+def build_docs(clean='no', browse='no'):
     """
     Generate the Sphinx documentation.
     """
-    local('cd docs && make clean html', capture=False)
+    c = ""
+    if clean.lower() in ['yes', 'y']:
+        c = "clean "
+    b = ""
+    if browse.lower() in ['yes', 'y']:
+        b = " && open _build/html/index.html"
+    local('cd docs; make %shtml%s' % (c, b), capture=False)
 
 
 @hosts('jforcier@fabfile.org')

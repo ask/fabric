@@ -3,25 +3,12 @@ Internal shared-state variables such as config settings and host lists.
 """
 
 import os
-import re
-import socket
 import sys
 from optparse import make_option
 from operator import add
 
-from fabric.utils import abort
 from fabric.network import HostConnectionCache
 from fabric.version import get_version
-
-
-#
-# Paramiko
-#
-
-try:
-    import paramiko as ssh
-except ImportError:
-    abort("paramiko is a required module. Please install it:\n\t$ sudo easy_install paramiko")
 
 
 #
@@ -107,61 +94,54 @@ def _rc_path():
         )
 
 
-# Options/settings which exist both as environment keys and which can be set
-# on the command line, are defined here. When used via `fab` they will be added
-# to the optparse parser, and either way they are added to `env` below (i.e.
-# the 'dest' value becomes the environment key and the value, the env value).
+# Options/settings which exist both as environment keys and which can be set on
+# the command line, are defined here. When used via `fab` they will be added to
+# the optparse parser, and either way they are added to `env` below (i.e.  the
+# 'dest' value becomes the environment key and the value, the env value).
 #
 # Keep in mind that optparse changes hyphens to underscores when automatically
 # deriving the `dest` name, e.g. `--reject-unknown-hosts` becomes
 # `reject_unknown_hosts`.
 #
 # Furthermore, *always* specify some sort of default to avoid ending up with
-# optparse.NO_DEFAULT (currently a two-tuple)! None is better than ''.
+# optparse.NO_DEFAULT (currently a two-tuple)! In general, None is a better
+# default than ''.
+#
+# User-facing documentation for these are kept in docs/env.rst.
 env_options = [
 
-    # By default, we accept unknown hosts' keys. This option allows users to
-    # disable that behavior (which means Fabric will raise an exception and
-    # terminate when an unknown host key is received from a server).
     make_option('-r', '--reject-unknown-hosts',
         action='store_true',
         default=False,
         help="reject unknown hosts"
     ),
 
-    # By default, we load the user's ~/.ssh/known_hosts file. In some cases
-    # users may not want this to occur.
     make_option('-D', '--disable-known-hosts',
         action='store_true',
         default=False,
         help="do not load user known_hosts file"
     ),
 
-    # Username
     make_option('-u', '--user',
         default=_get_system_username(),
         help="username to use when connecting to remote hosts"
     ),
 
-    # Password
     make_option('-p', '--password',
         default=None,
         help="password for use with authentication and/or sudo"
     ),
 
-    # Global host list
     make_option('-H', '--hosts',
         default=[],
         help="comma-separated list of hosts to operate on"
     ),
 
-    # Global role list
     make_option('-R', '--roles',
         default=[],
         help="comma-separated list of roles to operate on"
     ),
 
-    # Private key file
     make_option('-i', 
         action='append',
         dest='key_filename',
@@ -169,26 +149,22 @@ env_options = [
         help="path to SSH private key file. May be repeated."
     ),
 
-    # Fabfile name to look for
     make_option('-f', '--fabfile',
         default='fabfile',
         help="name of or path to a fabfile module or package, e.g. 'path/to/fabfile.py' or 'myfab'"
     ),
 
-    # Default error-handling behavior
     make_option('-w', '--warn-only',
         action='store_true',
         default=False,
         help="warn, instead of abort, when commands fail"
     ),
 
-    # Shell used when running remote commands
     make_option('-s', '--shell',
         default='/bin/bash -l -c',
         help="specify a new shell, defaults to '/bin/bash -l -c'"
     ),
 
-    # Config file location
     make_option('-c', '--config',
         dest='rcfile',
         default=_rc_path(),
@@ -203,6 +179,14 @@ env_options = [
     make_option('--show',
         metavar='LEVELS',
         help="comma-separated list of output levels to show"
+    ),
+
+    # Global PTY flag for run/sudo
+    make_option('--pty',
+        dest='always_use_pty',
+        action='store_true',
+        default=False,
+        help="force use of pseudo-terminal in run/sudo"
     )
     
 ]
@@ -240,10 +224,25 @@ class _EnvironmentDict(_AttributeDict):
 env = _EnvironmentDict({
     # Version number for --version
     'version': get_version(),
+    'all_hosts': None, 
+    'command': None,
+    'cwd': '', # Must be empty string, not None, for concatenation purposes
+    'host': None,
+    'host_string': None,
+    'port': None,
+    'real_fabfile': None,
+    'roledefs': {},
     'sudo_prompt': 'sudo password:',
+    # -S so sudo accepts passwd via stdin, -p with our known-value prompt for
+    # later detection (thus %s -- gets filled with env.sudo_prompt at runtime)
+    'sudo_prefix': "sudo -S -p '%s' ",
+    'again_prompt': 'Sorry, try again.\n',
     'use_shell': True,
     'roledefs': {},
-    'cwd': ''
+    'path': '',
+    'path_behavior': 'append',
+    'user': None,
+    'version': get_version(),
 })
 
 # Add in option defaults

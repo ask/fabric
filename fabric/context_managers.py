@@ -9,10 +9,13 @@ Context managers for use with the ``with`` statement.
 
 from contextlib import contextmanager, nested
 
-from state import env, output
+from fabric.state import env, output
 
 
 def _set_output(groups, which):
+    """
+    Refactored subroutine used by ``hide`` and ``show``.
+    """
     # Preserve original values, pull in new given value to use
     previous = {}
     for group in output.expand_aliases(groups):
@@ -93,9 +96,11 @@ def settings(*args, **kwargs):
     * Most usefully, it allows temporary overriding/updating of ``env`` with
       any provided keyword arguments, e.g. ``with settings(user='foo'):``.
       Original values, if any, will be restored once the ``with`` block closes.
-    * In addition, it will use ``contextlib.nested`` to nest any given
+    * In addition, it will use `contextlib.nested`_ to nest any given
       non-keyword arguments, which should be other context managers, e.g.
       ``with settings(hide('stderr'), show('stdout')):``.
+
+    .. _contextlib.nested: http://docs.python.org/library/contextlib.html#contextlib.nested
 
     These behaviors may be specified at the same time if desired. An example
     will hopefully illustrate why this is considered useful::
@@ -136,8 +141,10 @@ def cd(path):
     a string similar to ``"cd <path> && "`` prefixed in order to give the sense
     that there is actually statefulness involved.
 
-    Since all other operations and contrib functions make use of `run` and/or
-    `sudo`, they will also naturally be affected by use of `cd`.
+    Because use of `cd` affects all `run` and `sudo` invocations, any code
+    making use of `run` and/or `sudo`, such as much of the ``contrib`` section,
+    will also be affected by use of `cd`. However, at this time, `get` and
+    `put` do not honor `cd`; we expect this to be fixed in future releases.
 
     Like the actual 'cd' shell builtin, `cd` may be called with relative paths
     (keep in mind that your default starting directory is your remote user's
@@ -177,3 +184,32 @@ def cd(path):
     else:
         new_cwd = path
     return _setenv(cwd=new_cwd)
+
+
+def path(path, behavior='append'):
+    """
+    Append the given ``path`` to the PATH used to execute any wrapped commands.
+
+    Any calls to `run` or `sudo` within the wrapped block will implicitly have
+    a string similar to ``"PATH=$PATH:<path> "`` prepended before the given
+    command.
+
+    You may customize the behavior of `path` by specifying the optional
+    ``behavior`` keyword argument, as follows:
+
+    * ``'append'``: append given path to the current ``$PATH``, e.g.
+      ``PATH=$PATH:<path>``. This is the default behavior.
+    * ``'prepend'``: prepend given path to the current ``$PATH``, e.g.
+      ``PATH=<path>:$PATH``.
+    * ``'replace'``: ignore previous value of ``$PATH`` altogether, e.g.
+      ``PATH=<path>``.
+
+    .. note::
+
+        This context manager is currently implemented by modifying (and, as
+        always, restoring afterwards) the current value of environment
+        variables, ``env.path`` and ``env.path_behavior``. However, this
+        implementation may change in the future, so we do not recommend
+        manually altering them directly.
+    """
+    return _setenv(path=path, path_behavior=behavior)

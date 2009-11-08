@@ -3,9 +3,9 @@ Installation
 ============
 
 The most direct way to install Fabric is to obtain the source code and run
-``python setup.py install``. This method works for both release versions and
-development versions of the code, and requires nothing but a basic Python
-installation.
+``python setup.py install``. This method works for both release and development
+versions of the code, and requires nothing but a basic Python installation and
+the `setuptools`_ library.
 
 .. note::
 
@@ -18,36 +18,78 @@ installation.
 Dependencies
 ============
 
-In order to install Fabric, you will need `Python <http://python.org>`_ version
-2.5 or newer, and the following third-party Python packages:
+In order to install Fabric, you will need three primary pieces of software: the
+Python programming language, the setuptools library, and the PyCrypto
+cryptography library. Please read on for important details on each dependency
+-- there are a few gotchas.
 
-* `Paramiko <http://www.lag.net/paramiko/>`_ >=1.7
-* `PyCrypto <http://www.amk.ca/python/code/crypto.html>`_ (a dependency of
-  Paramiko) >=1.9
+Python
+------
 
-.. note::
+Fabric requires `Python <http://python.org>`_ version 2.5 or 2.6. Some caveats
+and notes about other Python versions:
 
-    Installation via ``pip`` or ``easy_install`` (see :ref:`easy-install`
-    below) will automatically install the above packages, so you may not need
-    to hunt for them yourself.
+* We are not planning on supporting **Python 2.4** given its age and the number
+  of useful tools in Python 2.5 such as context managers and new modules.
+  That said, the actual amount of 2.5-specific functionality is not
+  prohibitively large, and we would link to -- but not support -- a third-party
+  2.4-compatible fork. (No such fork exists at this time, to our knowledge.)
+* Fabric has not yet been tested on **Python 3.x** and is thus likely to be
+  incompatible with that line of development. However, we try to be at least
+  somewhat forward-looking (e.g. using ``print()`` instead of ``print``) and
+  will definitely be porting to 3.x in the future once our dependencies and the
+  rest of the ecosystem does so as well.
 
-.. note::
+setuptools
+----------
 
-    Windows users without an installed C compiler will likely experience
-    problems installing PyCrypto, as it involves C code and is not a pure
-    Python package like the others. We recommend either installing a C
-    development environment such as `Cygwin <http://cygwin.com>`_ or obtaining
-    a precompiled Win32 PyCrypto package from `voidspace's Python modules page
-    <http://www.voidspace.org.uk/python/modules.shtml#pycrypto>`_.
+`Setuptools`_ comes with some Python installations by default; if yours doesn't,
+you'll need to grab it. In such situations it's typically packaged as
+``python-setuptools``, ``py25-setuptools`` or similar. Fabric may drop its
+setuptools dependency in the future, or include alternative support for the
+`Distribute`_ project, but for now setuptools is required for installation.
 
-If you are interested in doing development work on Fabric, you may also need to
-install some or all of the following packages:
+.. _setuptools: http://pypi.python.org/pypi/setuptools
+.. _Distribute: http://pypi.python.org/pypi/distribute
 
+PyCrypto
+--------
+
+`PyCrypto <http://www.amk.ca/python/code/crypto.html>`_ is a dependency of
+Paramiko (which Fabric uses internally for SSH support), providing the
+low-level (C-based) encryption algorithms used to run SSH. You will need
+version 1.9 or newer, and may install PyCrypto from ``easy_install`` or ``pip``
+without worry. However, unless you are installing from a precompiled source
+such as a Debian apt repository or RedHat RPM, you will need the ability to
+build Python C-based modules from source -- read on.
+
+Users on **Unix-based platforms** such as Ubuntu or Mac OS X will need the
+traditional C build toolchain installed (e.g. Developer Tools / XCode Tools on
+the Mac, or the ``build-essential`` package on Ubuntu or Debian Linux --
+basically, anything with ``gcc``, ``make`` and so forth) as well as the Python
+development libraries, often named ``python-dev`` or similar.
+
+For **Windows** users we recommend either installing a C development environment
+such as `Cygwin <http://cygwin.com>`_ or obtaining a precompiled Win32 PyCrypto
+package from `voidspace's Python modules page
+<http://www.voidspace.org.uk/python/modules.shtml#pycrypto>`_.
+
+Development dependencies
+------------------------
+
+If you are interested in doing development work on Fabric (or even just running
+the test suite), you may also need to install some or all of the following
+packages:
+
+* `git <http://git-scm.com>`_ and `Mercurial`_, in order to obtain some of the
+  other dependencies below;
 * `Nose <http://code.google.com/p/python-nose/>`_ >=0.10 
 * `Coverage <http://nedbatchelder.com/code/modules/coverage.html>`_ >=2.85
 * `PyLint <http://www.logilab.org/857>`_ >=0.18
 * `Fudge <http://farmdev.com/projects/fudge/index.html>`_ >=0.9.2
 * `Sphinx <http://sphinx.pocoo.org/>`_ >= 0.6.1
+
+.. _Mercurial: http://mercurial.selenic.com/wiki/
 
 Downloads
 =========
@@ -59,7 +101,11 @@ either of the following locations:
   <http://git.fabfile.org>`_. Our Git repository viewer provides downloads of
   all tagged releases. See the "Download" column, next to the "Tag" column in
   the middle of the front page.
-* Alternately, see `Fabric's PyPI page <http://pypi.python.org/pypi/Fabric>`_.
+* `Our GitHub mirror <http://github.com/bitprophet/fabric>`_ has downloads of
+  all tagged releases as well -- just click the 'Download' button near the top
+  of the main page.
+* `Fabric's PyPI page <http://pypi.python.org/pypi/Fabric>`_ offers manual
+  downloads as well as being the entry point for :ref:`easy-install`.
 
 .. _source-code-checkouts:
 
@@ -88,13 +134,13 @@ branches may be of interest and how you can help out, please see the
 Easy_install and Pip
 ====================
 
-Fabric tries hard to play nice with packaging systems such as Python's
-``setuptools``, and as such it may be installed via either `easy_install
+Fabric may be installed via either `easy_install
 <http://wiki.python.org/moin/CheeseShopTutorial>`_ or `pip
 <http://pip.openplans.org>`_.
 
 Fabric's source distribution also comes with a ``pip`` requirements file
 called ``requirements.txt``, containing the various development requirements
-listed above. At time of writing, some of the listed third-party packages
-don't play well with ``pip``, so we aren't officially recommending use of the
-requirements file just yet.
+listed above (note, that's *development* requirements -- not necessary for
+simply using the software.) At time of writing, some of the listed third-party
+packages don't play well with ``pip``, so we aren't officially recommending use
+of the requirements file just yet.

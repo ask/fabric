@@ -9,9 +9,15 @@ import threading
 import socket
 import sys
 
-import paramiko as ssh
+from fabric.utils import abort
 
-from utils import abort
+try:
+    import warnings
+    warnings.simplefilter('ignore', DeprecationWarning)
+    import paramiko as ssh
+except ImportError:
+    abort("paramiko is a required module. Please install it:\n\t$ sudo easy_install paramiko")
+
 
 
 host_pattern = r'((?P<user>[^@]+)@)?(?P<host>[^:]+)(:(?P<port>\d+))?'
@@ -70,7 +76,10 @@ def normalize(host_string, omit_port=False):
 
     If ``omit_port`` is given and is True, only the host and user are returned.
     """
-    from state import env
+    from fabric.state import env
+    # Gracefully handle "empty" input by returning empty output
+    if not host_string:
+        return ('', '') if omit_port else ('', '', '')
     # Get user, host and port separately
     r = host_regex.match(host_string).groupdict()
     # Add any necessary defaults in
@@ -245,11 +254,11 @@ def prompt_for_password(previous=None, prompt=None):
     current host being connected to. To override this, specify a string value
     for ``prompt``.
     """
-    from state import env
+    from fabric.state import env
     # Construct the prompt we will display to the user (using host if available)
     if 'host' in env:
-        base_password_prompt = "Password for %s" % join_host_strings(*normalize(
-            env.host_string, omit_port=True))
+        host = join_host_strings(*normalize(env.host_string, omit_port=True))
+        base_password_prompt = "Password for %s" % host
     else:
         base_password_prompt = "Password"
     password_prompt = base_password_prompt
@@ -296,13 +305,18 @@ def output_thread(prefix, chan, stderr=False, capture=None):
             recv = chan.recv
         out = recv(65535)
         while out != '':
-            # Capture if necessary
-            if capture is not None:
-                capture += out
             # Detect password prompts
             initial = re.findall(r'^%s$' % env.sudo_prompt, out, re.I|re.M)
-            try_again = re.findall(r'^Sorry, try again', out, re.I|re.M)
-            # Deal with any such prompts
+            try_again = re.findall(r'^%s' % env.again_prompt, out, re.I|re.M)
+            # Capture if necessary (omitting password prompts so captured
+            # stderr isn't gunked up)
+            if capture is not None:
+                if initial:
+                    out = out.replace(env.sudo_prompt, '')
+                if try_again:
+                    out = out.replace(env.again_prompt, '')
+                capture += out
+            # Deal with password prompts
             if initial or try_again:
                 # Prompt user if nothing to try, or if stored password failed
                 if not password or try_again:
@@ -368,7 +382,7 @@ def needs_host(func):
     commands, this decorator will also end up prompting the user once per
     command (in the case where multiple commands have no hosts set, of course.)
     """
-    from state import env
+    from fabric.state import env
     @wraps(func)
     def host_prompting_wrapper(*args, **kwargs):
         while not env.get('host_string', False):
