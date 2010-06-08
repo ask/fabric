@@ -19,7 +19,7 @@ from contextlib import closing
 from fabric.context_managers import settings
 from fabric.network import output_thread, needs_host
 from fabric.state import env, connections, output
-from fabric.utils import abort, indent, warn, fastprint
+from fabric.utils import abort, indent, warn
 
 
 def _handle_failure(message, exception=None):
@@ -70,7 +70,9 @@ class _AttributeString(str):
     """
     Simple string subclass to allow arbitrary attribute access.
     """
-
+    @property
+    def stdout(self):
+        return str(self)
 
 
 # Can't wait till Python versions supporting 'def func(*args, foo=bar)' become
@@ -391,6 +393,10 @@ def _shell_wrap(command, shell=True, sudo_prefix=None):
     """
     Conditionally wrap given command in env.shell (while honoring sudo.)
     """
+    # Honor env.shell, while allowing the 'shell' kwarg to override it (at
+    # least in terms of turning it off.)
+    if shell and not env.use_shell:
+        shell = False
     # Sudo plus space, or empty string
     if sudo_prefix is None:
         sudo_prefix = ""
@@ -409,20 +415,26 @@ def _shell_wrap(command, shell=True, sudo_prefix=None):
 
 def _prefix_commands(command):
     """
-    Prefixes ``command`` with any "prefix commands", e.g. ``cd <foo> && ``.
+    Prefixes ``command`` with all prefixes found in ``env.command_prefixes``.
 
-    Currently, this only applies the directory switching implemented in
+    ``env.command_prefixes`` is a list of strings which is modified by the
+    `~fabric.context_managers.prefix` context manager.
+
+    This function also handles a special-case prefix, ``cwd``, used by
     `~fabric.context_managers.cd`.
     """
-    # cd(): "cd" call bringing us to the current working dir
-    cwd = env.cwd
-    if cwd:
-        # Deal with spaces so users don't have to e.g. cd("foo\ bar")
-        # themselves; do NOT double-quote as that will kill e.g. cd("~/foo").
-        cwd = 'cd %s && ' % cwd.replace(' ', '\ ')
-    else:
-        cwd = ''
-    return cwd + command
+    # Local prefix list (to hold env.command_prefixes + any special cases)
+    prefixes = list(env.command_prefixes)
+    # Handle current working directory, which gets its own special case due to
+    # being a path string that gets grown/shrunk, instead of just a single
+    # string or lack thereof.
+    # Also place it at the front of the list, in case user is expecting another
+    # prefixed command to be "in" the current working directory.
+    if env.cwd:
+        prefixes.insert(0, 'cd %s' % env.cwd)
+    glue = " && "
+    prefix = (glue.join(prefixes) + glue) if prefixes else ""
+    return prefix + command
 
 
 def _prefix_env_vars(command):
@@ -466,10 +478,11 @@ def _run_command(command, shell=True, pty=False, sudo=False, user=None):
         shell,
         _sudo_prefix(user) if sudo else None
     )
+    which = 'sudo' if sudo else 'run'
     if output.debug:
-        print("[%s] run: %s" % (env.host_string, wrapped_command))
+        print("[%s] %s: %s" % (env.host_string, which, wrapped_command))
     elif output.running:
-        print("[%s] run: %s" % (env.host_string, given_command))
+        print("[%s] %s: %s" % (env.host_string, which, given_command))
     channel = connections[env.host_string]._transport.open_session()
     # Create pty if necessary (using Paramiko default options, which as of
     # 1.7.4 is vt100 $TERM @ 80x24 characters)
@@ -502,7 +515,7 @@ def _run_command(command, shell=True, pty=False, sudo=False, user=None):
     out.failed = False
     if status != 0:
         out.failed = True
-        msg = "%s() encountered an error (return code %s) while executing '%s'" % ('sudo' if sudo else 'run', status, command)
+        msg = "%s() encountered an error (return code %s) while executing '%s'" % (which, status, command)
         _handle_failure(message=msg)
 
     # Attach return code to output string so users who have set things to warn
@@ -548,6 +561,10 @@ def run(command, shell=True, pty=False):
         run("ls /home/myuser", shell=False)
         output = run('ls /var/www/site1')
     
+    .. versionchanged:: 1.0
+        Added the ``succeeded`` attribute.
+    .. versionchanged:: 1.0
+        Added the ``stderr`` attribute.
     """
     return _run_command(command, shell, pty)
 
@@ -604,14 +621,21 @@ def local(command, capture=True):
     When ``capture`` is False, global output controls (``output.stdout`` and
     ``output.stderr`` will be used to determine what is printed and what is
     discarded.
+
+    .. versionchanged:: 1.0
+        Added the ``succeeded`` attribute.
+    .. versionchanged:: 1.0
+        Now honors the `~fabric.context_managers.cd` context manager.
+    .. versionchanged:: 1.0
+        Added the ``stderr`` attribute.
     """
     given_command = command
     # Apply cd(), path() etc
     wrapped_command = _prefix_commands(_prefix_env_vars(command))
     if output.debug:
-        print("[localhost] run: %s" % (wrapped_command))
+        print("[localhost] local: %s" % (wrapped_command))
     elif output.running:
-        print("[localhost] run: " + given_command)
+        print("[localhost] local: " + given_command)
     # By default, capture both stdout and stderr
     PIPE = subprocess.PIPE
     out_stream = PIPE
@@ -627,8 +651,8 @@ def local(command, capture=True):
             stderr=err_stream)
     (stdout, stderr) = p.communicate()
     # Handle error condition (deal with stdout being None, too)
-    out = _AttributeString(stdout or "")
-    err = _AttributeString(stderr or "")
+    out = _AttributeString(stdout.strip() if stdout else "")
+    err = _AttributeString(stderr.strip() if stderr else "")
     out.failed = False
     out.return_code = p.returncode
     out.stderr = err
@@ -654,9 +678,9 @@ def reboot(wait):
     client.close()
     del connections[env.host_string]
     if output.running:
-        fastprint("Waiting for reboot: ")
+        puts("Waiting for reboot: ", flush=True)
         per_tick = 5
         for second in range(int(wait / per_tick)):
-            fastprint(".")
+            puts(".", show_prefix=False, flush=True)
             time.sleep(per_tick)
-        fastprint("done.\n")
+        puts("done.\n", show_prefix=False, flush=True)

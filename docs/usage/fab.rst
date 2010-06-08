@@ -25,6 +25,45 @@ flexible, by using the provided options and/or passing arguments to individual
 tasks.
 
 
+.. _arbitrary-commands:
+
+Arbitrary remote shell commands
+===============================
+
+.. versionadded:: 1.0
+
+Fabric leverages a lesser-known command line convention and may be called in
+the following manner::
+
+    $ fab [options] -- [shell command]
+
+where everything after the ``--`` is turned into a temporary
+`~fabric.operations.run` call, and is not parsed for ``fab`` options. If you've
+defined a host list at the module level or on the command line, this usage will
+act like a one-line anonymous task.
+
+For example, let's say you just wanted to get the kernel info for a bunch of
+systems; you could do this::
+
+    $ fab -H system1,system2,system3 -- uname -a
+
+which would be literally equivalent to the following fabfile::
+
+    from fabric.api import run
+
+    def anonymous():
+        run("uname -a")
+
+as if it were executed thusly::
+
+    $ fab -H system1,system2,system3 anonymous
+
+Most of the time you will want to just write out the task in your fabfile
+(anything you use once, you're likely to use again) but this feature provides a
+handy, fast way to quickly dash off an SSH-borne command while leveraging your
+fabfile's connection settings.
+
+
 .. _command-line-options:
 
 Command-line options
@@ -44,20 +83,17 @@ below.
 
 .. _optparse: http://docs.python.org/library/optparse.html
 
-.. cmdoption:: -h, --help
+.. cmdoption:: -a
 
-    Displays a standard help message, with all possible options and a brief
-    overview of what they do, then exits.
+    Sets :ref:`env.no_agent <no_agent>` to ``True``, forcing Paramiko not to
+    talk to the SSH agent when trying to unlock private key files.
 
-.. cmdoption:: -V, --version
+    .. versionadded:: 0.9.1
 
-    Displays Fabric's version number, then exits.
+.. cmdoption:: -c RCFILE, --config=RCFILE
 
-.. cmdoption:: -l, --list
-
-    Imports a fabfile as normal, but then prints a list of all discovered tasks
-    and exits. Will also print the first line of each task's docstring, if it
-    has one, next to it (truncating if necessary.)
+    Sets :ref:`env.rcfile <rcfile>` to the given file path, which Fabric will
+    try to load on startup and use to update environment variables.
 
 .. cmdoption:: -d COMMAND, --display=COMMAND
 
@@ -66,42 +102,10 @@ below.
     docstrings are a good idea. (They're *always* a good idea, of course --
     just moreso here.)
 
-.. cmdoption:: -r, --reject-unknown-hosts
-
-    Sets :ref:`env.reject_unknown_hosts <reject-unknown-hosts>` to ``True``,
-    causing Fabric to abort when connecting to hosts not found in the user's SSH
-    known_hosts file.
-
 .. cmdoption:: -D, --disable-known-hosts
 
     Sets :ref:`env.disable_known_hosts <disable-known-hosts>` to ``True``,
     preventing Fabric from loading the user's SSH known_hosts file.
-
-.. cmdoption:: -u USER, --user=USER
-
-    Sets :ref:`env.user <user>` to the given string; it will then be used as the
-    default username when making SSH connections.
-
-.. cmdoption:: -p PASSWORD, --password=PASSWORD
-
-    Sets :ref:`env.password <password>` to the given string; it will then be
-    used as the default password when making SSH connections or calling the
-    ``sudo`` program.
-
-.. cmdoption:: -H HOSTS, --hosts=HOSTS
-
-    Sets :ref:`env.hosts <hosts>` to the given comma-delimited list of host
-    strings.
-
-.. cmdoption:: -R ROLES, --roles=ROLES
-
-    Sets :ref:`env.roles <roles>` to the given comma-separated list of role
-    names.
-
-.. cmdoption:: -i KEY_FILENAME
-
-    When set to a file path, will load the given file as an SSH identity file
-    (usually a private key.) This option may be repeated multiple times.
 
 .. cmdoption:: -f FABFILE, --fabfile=FABFILE
 
@@ -111,33 +115,95 @@ below.
 
 .. seealso:: :doc:`fabfiles`
 
-.. cmdoption:: -w, --warn-only
+.. cmdoption:: -h, --help
 
-    Sets :ref:`env.warn_only <warn_only>` to ``True``, causing Fabric to
-    continue execution even when commands encounter error conditions.
-
-.. cmdoption:: -s SHELL, --shell=SHELL
-
-    Sets :ref:`env.shell <shell>` to the given string, overriding the default
-    shell wrapper used to execute remote commands.
-
-.. seealso:: `~fabric.operations.run`, `~fabric.operations.sudo`
-
-.. cmdoption:: -c RCFILE, --config=RCFILE
-
-    Sets :ref:`env.rcfile <rcfile>` to the given file path, which Fabric will
-    try to load on startup and use to update environment variables.
+    Displays a standard help message, with all possible options and a brief
+    overview of what they do, then exits.
 
 .. cmdoption:: --hide=LEVELS
 
     A comma-separated list of :doc:`output levels <output_controls>` to hide by
     default.
 
+
+.. cmdoption:: -H HOSTS, --hosts=HOSTS
+
+    Sets :ref:`env.hosts <hosts>` to the given comma-delimited list of host
+    strings.
+
+.. cmdoption:: -i KEY_FILENAME
+
+    When set to a file path, will load the given file as an SSH identity file
+    (usually a private key.) This option may be repeated multiple times. Sets
+    (or appends to) :ref:`env.key_filename <key-filename>`.
+
+.. cmdoption:: -k
+
+    Sets :ref:`env.no_keys <no_keys>` to ``True``, forcing Paramiko to not look
+    for SSH private key files in one's home directory.
+
+    .. versionadded:: 0.9.1
+
+.. cmdoption:: -l, --list
+
+    Imports a fabfile as normal, but then prints a list of all discovered tasks
+    and exits. Will also print the first line of each task's docstring, if it
+    has one, next to it (truncating if necessary.)
+
+    .. versionchanged:: 0.9.1
+        Added docstring to output.
+
+.. cmdoption:: -p PASSWORD, --password=PASSWORD
+
+    Sets :ref:`env.password <password>` to the given string; it will then be
+    used as the default password when making SSH connections or calling the
+    ``sudo`` program.
+
+.. cmdoption:: --pty
+
+    Sets :ref:`env.always_use_pty <always-use-pty>` to ``True``, causing all
+    `~fabric.operations.run`/`~fabric.operations.sudo` calls to behave as if
+    one had specified ``pty=True`` (forcing a pseudoterminal on the remote
+    end.)
+
+    .. versionadded:: 1.0
+
+.. cmdoption:: -r, --reject-unknown-hosts
+
+    Sets :ref:`env.reject_unknown_hosts <reject-unknown-hosts>` to ``True``,
+    causing Fabric to abort when connecting to hosts not found in the user's SSH
+    known_hosts file.
+
+.. cmdoption:: -R ROLES, --roles=ROLES
+
+    Sets :ref:`env.roles <roles>` to the given comma-separated list of role
+    names.
+
+.. cmdoption:: -s SHELL, --shell=SHELL
+
+    Sets :ref:`env.shell <shell>` to the given string, overriding the default
+    shell wrapper used to execute remote commands.
+
 .. cmdoption:: --show=LEVELS
 
     A comma-separated list of :doc:`output levels <output_controls>` to show by
     default.
 
+.. seealso:: `~fabric.operations.run`, `~fabric.operations.sudo`
+
+.. cmdoption:: -u USER, --user=USER
+
+    Sets :ref:`env.user <user>` to the given string; it will then be used as the
+    default username when making SSH connections.
+
+.. cmdoption:: -V, --version
+
+    Displays Fabric's version number, then exits.
+
+.. cmdoption:: -w, --warn-only
+
+    Sets :ref:`env.warn_only <warn_only>` to ``True``, causing Fabric to
+    continue execution even when commands encounter error conditions.
 
 Per-task arguments
 ==================

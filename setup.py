@@ -4,18 +4,33 @@ from setuptools import setup, find_packages
 
 from fabric.version import get_version
 
+
+readme = open('README').read()
+
+long_description = """
+To find out what's new in this version of Fabric, please see `the changelog
+<http://docs.fabfile.org/changes/%s.html>`_.
+
+----
+
+%s
+
+----
+
+For more information, please see the Fabric website or execute ``fab --help``.
+""" % (get_version('short'), readme)
+
 setup(
     name='Fabric',
-    version=get_version(),
+    version=get_version('short'),
     description='Fabric is a simple, Pythonic tool for remote execution and deployment.',
-    long_description=open('README').read() + """
-    
-For more information, please see the Fabric website or execute ``fab --help``.
-""",
+    long_description=long_description,
     author='Jeff Forcier',
     author_email='jeff@bitprophet.org',
     url='http://fabfile.org',
     packages=find_packages(),
+    test_suite='nose.collector',
+    tests_require=['nose', 'fudge'],
     install_requires=['pycrypto >=1.9'],
     entry_points={
         'console_scripts': [
@@ -32,6 +47,8 @@ For more information, please see the Fabric website or execute ``fab --help``.
           'Operating System :: Unix',
           'Operating System :: POSIX',
           'Programming Language :: Python',
+          'Programming Language :: Python :: 2.5',
+          'Programming Language :: Python :: 2.6',
           'Topic :: Software Development',
           'Topic :: Software Development :: Build Tools',
           'Topic :: Software Development :: Libraries',

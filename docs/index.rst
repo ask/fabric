@@ -70,6 +70,7 @@ have already upgraded to Python 2.6:
     tutorial
     installation
     development
+    faq
 
 Tutorial
 --------
@@ -92,6 +93,14 @@ documentation, which expands upon the concepts outlined in the
     :glob:
 
     usage/*
+
+.. _faq:
+
+FAQ
+---
+
+Some frequently encountered questions, coupled with answers/solutions/excuses,
+may be found on the :doc:`faq` page.
 
 .. _api_docs:
 
@@ -170,6 +179,14 @@ To file new bugs or search existing ones, you may visit Fabric's `Redmine
 <http://redmine.org>`_ instance, located at `code.fabfile.org
 <http://code.fabfile.org>`_. Due to issues with spam, you'll need to (quickly
 and painlessly) register an account in order to post new tickets.
+
+IRC
+---
+
+We maintain a semi-official IRC channel at ``#fabric`` on Freenode
+(``irc://irc.freenode.net``) where the developers and other users may be found.
+As always with IRC, we can't promise immediate responses, but some folks keep
+logs of the channel and will try to get back to you when they can.
 
 Wiki
 ----

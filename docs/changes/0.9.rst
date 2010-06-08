@@ -1,23 +1,6 @@
 ======================
-Changes in version 1.0
-======================
-
-* `~fabric.contrib.files.contains` and `~fabric.contrib.files.append`
-  previously had the ``filename`` argument in the second position, whereas all
-  other functions in the module had ``filename`` as the first argument. In 1.0,
-  these two functions were brought in line with the rest of
-  `~fabric.contrib.files`.
-* `~fabric.operations.sudo`'s signature used to be ``sudo(command, shell, user,
-  pty)``; to be consistent with `~fabric.operations.run`, the last two kwargs
-  have been swapped: its signature is now ``sudo(command, shell, pty, user)``.
-
-
-======================
 Changes in version 0.9
 ======================
-
-**TODO**: update the below at least, or overall page at best, so it meshes well
-with this now covering 2 updates (0.1 => 0.9, 0.9 => 1.0).
 
 This document details the various backwards-incompatible changes made during
 Fabric's rewrite between versions 0.1 and 0.9. The codebase has been almost
@@ -115,7 +98,7 @@ return the output from the server.
 
 Other modes of execution such as the old "broad mode" may return as Fabric's
 internals are refactored and expanded, but for now we've simplified things, and
-broad mode made the most sense as the primary mode of use.
+deep mode made the most sense as the primary mode of use.
 
 "Lazy" string interpolation
 ---------------------------
@@ -424,3 +407,11 @@ promise that future changelogs will be more verbose :)
 * ``fab test`` (when in source tree) now uses doctests.
 * Add note to compatibility page re: fab_quiet.
 * Update local() to honor context_managers.cd()
+
+Changes from release candidate 1 to final release
+=================================================
+
+* Fixed the `~fabric.contrib.files.sed` docstring to accurately reflect which
+  ``sed`` options it uses.
+* Various changes to internal fabfile, version mechanisms, and other
+  non-user-facing things.

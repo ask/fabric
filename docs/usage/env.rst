@@ -114,6 +114,22 @@ informational purposes only.
 
 .. seealso:: :doc:`execution`
 
+.. _always-use-pty:
+
+``always_use_pty``
+------------------
+
+**Default:** ``False``
+
+When set to ``True``, causes `~fabric.operations.run`/`~fabric.operations.sudo`
+to act as if they have been called with ``pty=True``. (To disable on a
+per-invocation basis, manually specify ``pty=False``.)
+
+The command-line flag :option:`--pty`, if given, will set this env var to
+``True``.
+
+.. versionadded:: 1.0
+
 ``command``
 -----------
 
@@ -125,6 +141,16 @@ Set by ``fab`` to the currently executing command name (e.g. when executed as
 only.
 
 .. seealso:: :doc:`execution`
+
+``command_prefixes``
+--------------------
+
+**Default:** ``[]``
+
+Modified by `~fabric.context_managers.prefix`, and prepended to commands
+executed by `~fabric.operations.run`/`~fabric.operations.sudo`.
+
+.. versionadded:: 1.0
 
 ``cwd``
 -------
@@ -189,15 +215,43 @@ The global host list used when composing per-task host lists.
 
 .. seealso:: :doc:`execution`
 
+.. _key-filename:
+
 ``key_filename``
 ----------------
 
 **Default:** ``None``
 
 May be a string or list of strings, referencing file paths to SSH key files to
-try when connecting. Passed through directly to the SSH layer.
+try when connecting. Passed through directly to the SSH layer. May be
+set/appended to with :option:`-i`.
 
 .. seealso:: `Paramiko's documentation for SSHClient.connect() <http://www.lag.net/paramiko/docs/paramiko.SSHClient-class.html#connect>`_
+
+.. _no_agent:
+
+``no_agent``
+------------------
+
+**Default:** ``False``
+
+If ``True``, will tell Paramiko not to seek out running SSH agents when using
+key-based authentication.
+
+.. versionadded:: 0.9.1
+
+.. _no_keys:
+
+``no_keys``
+------------------
+
+**Default:** ``False``
+
+If ``True``, will tell Paramiko not to load any private key files from one's
+``$HOME/.ssh/`` folder. (Key files explicitly loaded via ``fab -i`` will still
+be used, of course.)
+
+.. versionadded:: 0.9.1
 
 .. _password:
 

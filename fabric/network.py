@@ -158,8 +158,16 @@ def connect(user, host, port):
     while not connected:
         # Attempt connection
         try:
-            client.connect(host, int(port), user, password,
-                key_filename=env.key_filename, timeout=10)
+            client.connect(
+                hostname=host,
+                port=int(port),
+                username=user,
+                password=password,
+                key_filename=env.key_filename,
+                timeout=10,
+                allow_agent=not env.no_agent,
+                look_for_keys=not env.no_keys
+            )
             connected = True
             return client
         # BadHostKeyException corresponds to key mismatch, i.e. what on the
@@ -320,10 +328,11 @@ def output_thread(prefix, chan, stderr=False, capture=None):
             if initial or try_again:
                 # Prompt user if nothing to try, or if stored password failed
                 if not password or try_again:
-                    password = prompt_for_password(password)
-                # Set environment password if that was previously empty.
-                if not env.password:
-                    env.password = password
+                    # Save entered password in local and global password var.
+                    # Will have to re-enter when password changes per host, but
+                    # this way a given password will persist for as long as
+                    # it's valid.
+                    env.password = password = prompt_for_password(password)
                 # Send current password down the pipe
                 chan.sendall(password + '\n')
                 out = ""
@@ -386,6 +395,43 @@ def needs_host(func):
     @wraps(func)
     def host_prompting_wrapper(*args, **kwargs):
         while not env.get('host_string', False):
-            env.host_string = raw_input("No hosts found. Please specify (single) host string for connection: ")
+            host_string = raw_input("No hosts found. Please specify (single) host string for connection: ")
+            interpret_host_string(host_string)
         return func(*args, **kwargs)
     return host_prompting_wrapper
+
+
+def interpret_host_string(host_string):
+    """
+    Apply given host string to the env dict.
+
+    Split it into hostname, username and port (using
+    `~fabric.network.normalize`) and store the full host string plus its
+    constituent parts into the appropriate env vars.
+
+    Returns the parts as split out by ``normalize`` for convenience.
+    """
+    from fabric.state import env
+    username, hostname, port = normalize(host_string)
+    env.host_string = host_string
+    env.host = hostname
+    env.user = username
+    env.port = port
+    return username, hostname, port
+
+
+def disconnect_all():
+    """
+    Disconnect from all currently connected servers.
+
+    Used at the end of ``fab``'s main loop, and also intended for use by
+    library users.
+    """
+    from fabric.state import connections, output
+    # Explicitly disconnect from all servers
+    for key in connections.keys():
+        if output.status:
+            print "Disconnecting from %s..." % denormalize(key),
+        connections[key].close()
+        if output.status:
+            print "done."

@@ -13,6 +13,18 @@
 
 import sys, os
 
+# Custom ReST roles.
+from docutils.parsers.rst import roles
+from docutils import nodes, utils
+
+def issues_role(name, rawtext, text, lineno, inliner, options={}, content=[]):
+    issue_no = utils.unescape(text)
+    ref = "http://code.fabfile.org/issues/show/" + issue_no
+    node = nodes.reference(rawtext, '#' + issue_no, refuri=ref, **options)
+    return [node], []
+
+roles.register_local_role("issue", issues_role)
+
 # If extensions (or modules to document with autodoc) are in another directory,
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
@@ -52,10 +64,10 @@ sys.path.insert(0, os.path.abspath(os.path.join('..', '..', __file__)))
 from fabric.version import get_version
 # Get version info
 #
-# The short X.Y version.
-version = get_version(line_only=True)
-# The full version, including alpha/beta/rc tags.
-release = get_version(verbose=True)
+# Branch-only name
+version = get_version('branch')
+# The full human readable version, including alpha/beta/rc tags.
+release = get_version('normal')
 # Restore old path
 sys.path = oldpath[:]
 

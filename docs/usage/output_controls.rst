@@ -21,6 +21,9 @@ user.
 
     All levels, save for ``debug``, are on by default.
 
+Standard output levels
+----------------------
+
 The standard, atomic output levels/groups are as follows:
 
 * **status**: Status messages, i.e. noting when Fabric is done running, if
@@ -40,11 +43,21 @@ The standard, atomic output levels/groups are as follows:
   whether warning messages are printed or hidden.
 
 * **running**: Printouts of commands being executed or files transferred, e.g.
-  ``[myserver] run: ls /var/www``.
+  ``[myserver] run: ls /var/www``. Also controls printing of tasks being run,
+  e.g. ``[myserver] Executing task 'foo'``.
 
 * **stdout**: Local, or remote, stdout, i.e. non-error output from commands.
 
 * **stderr**: Local, or remote, stderr, i.e. error-related output from commands.
+
+* **user**: User-generated output, i.e. local output printed by fabfile code
+  via use of the `~fabric.utils.fastprint` or `~fabric.utils.puts` functions.
+
+.. versionchanged:: 1.0
+    Added "Executing task" lines to the ``running`` output level.
+
+.. versionchanged:: 1.0
+    Added the ``user`` output level.
 
 Debug output
 ------------
@@ -67,6 +80,9 @@ differently from the rest:
   will see the literal, full string as passed to the remote server::
 
       [hostname] run: /bin/bash -l -c "ls \"/home/username/Folder Name With Spaces\""
+
+  Enabling ``debug`` output will also display full Python tracebacks during
+  aborts.
   
   .. note::
   
@@ -75,6 +91,9 @@ differently from the rest:
       characters), this setting takes precedence over the others; so if
       ``running`` is False but ``debug`` is True, you will still be shown the
       'running' line in its debugging form.
+
+.. versionchanged:: 1.0
+    Debug output now includes full Python tracebacks during aborts.
 
 Output level aliases
 --------------------
@@ -87,8 +106,8 @@ toggle all of the levels they are mapped to.
 * **output**: Maps to both ``stdout`` and ``stderr``. Useful for when you only
   care to see the 'running' lines and your own print statements (and warnings).
 
-* **everything**: Includes ``warnings``, ``running`` and ``output`` (see
-  above.) Thus, when turning off ``everything``, you will only see a bare
+* **everything**: Includes ``warnings``, ``running``, ``user`` and ``output``
+  (see above.) Thus, when turning off ``everything``, you will only see a bare
   minimum of output (just ``status`` and ``debug`` if it's on), along with your
   own print statements.
 

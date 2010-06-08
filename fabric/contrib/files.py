@@ -116,7 +116,7 @@ def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
     """
     Run a search-and-replace on ``filename`` with given regex patterns.
 
-    Equivalent to ``sed -i<backup> -e "/<limit>/ s/<before>/<after>/g
+    Equivalent to ``sed -i<backup> -r -e "/<limit>/ s/<before>/<after>/g
     <filename>"``.
 
     For convenience, ``before`` and ``after`` will automatically escape forward
@@ -131,8 +131,14 @@ def sed(filename, before, after, limit='', use_sudo=False, backup='.bak'):
     """
     func = use_sudo and sudo or run
     expr = r"sed -i%s -r -e '%ss/%s/%s/g' %s"
-    before = before.replace('/', r'\/')
-    after = after.replace('/', r'\/')
+    # Characters to be escaped in both
+    for char in "/'":
+        before = before.replace(char, r'\%s' % char)
+        after = after.replace(char, r'\%s' % char)
+    # Characters to be escaped in replacement only (they're useful in regexen
+    # in the 'before' part)
+    for char in "()":
+        after = after.replace(char, r'\%s' % char)
     if limit:
         limit = r'/%s/ ' % limit
     command = expr % (backup, limit, before, after, filename)
@@ -228,6 +234,10 @@ def contains(filename, text, exact=False, use_sudo=False):
     invocation.
 
     If ``use_sudo`` is True, will use `sudo` instead of `run`.
+
+    .. versionchanged:: 1.0
+        Swapped the order of the ``filename`` and ``text`` arguments to be
+        consistent with other functions in this module.
     """
     func = use_sudo and sudo or run
     if exact:
@@ -239,30 +249,40 @@ def contains(filename, text, exact=False, use_sudo=False):
         ))
 
 
-def append(filename, text, use_sudo=False):
+def append(filename, text, use_sudo=False, partial=True):
     """
     Append string (or list of strings) ``text`` to ``filename``.
 
     When a list is given, each string inside is handled independently (but in
     the order given.)
 
-    If ``text`` is already found as a discrete line in ``filename``, the append
-    is not run, and None is returned immediately. Otherwise, the given text is
-    appended to the end of the given ``filename`` via e.g. ``echo '$text' >>
-    $filename``.
+    If ``text`` is already found in ``filename``, the append is not run, and
+    None is returned immediately. Otherwise, the given text is appended to the
+    end of the given ``filename`` via e.g. ``echo '$text' >> $filename``.
+
+    The test for whether ``text`` already exists defaults to being partial
+    only, as in ``^<text>``. Specifying ``partial=False`` will change the
+    effective regex to ``^<text>$``.
 
     Because ``text`` is single-quoted, single quotes will be transparently 
     backslash-escaped.
 
     If ``use_sudo`` is True, will use `sudo` instead of `run`.
+
+    .. versionchanged:: 0.9.1
+        Added the ``partial`` keyword argument.
+
+    .. versionchanged:: 1.0
+        Swapped the order of the ``filename`` and ``text`` arguments to be
+        consistent with other functions in this module.
     """
     func = use_sudo and sudo or run
     # Normalize non-list input to be a list
     if isinstance(text, str):
         text = [text]
     for line in text:
-        if (contains(filename, '^' + re.escape(line), use_sudo=use_sudo)
-            and line
-            and exists(filename)):
+        regex = '^' + re.escape(line) + ('' if partial else '$')
+        if (exists(filename) and line
+            and contains(filename, regex, use_sudo=use_sudo)):
             continue
         func("echo '%s' >> %s" % (line.replace("'", r'\''), filename))

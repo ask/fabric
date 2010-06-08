@@ -60,8 +60,8 @@ Paramiko (which Fabric uses internally for SSH support), providing the
 low-level (C-based) encryption algorithms used to run SSH. You will need
 version 1.9 or newer, and may install PyCrypto from ``easy_install`` or ``pip``
 without worry. However, unless you are installing from a precompiled source
-such as a Debian apt repository or RedHat RPM, you will need the ability to
-build Python C-based modules from source -- read on.
+such as a Debian apt repository or RedHat RPM, or using :ref:`pypm <pypm>` you
+will need the ability to build Python C-based modules from source -- read on.
 
 Users on **Unix-based platforms** such as Ubuntu or Mac OS X will need the
 traditional C build toolchain installed (e.g. Developer Tools / XCode Tools on
@@ -69,9 +69,9 @@ the Mac, or the ``build-essential`` package on Ubuntu or Debian Linux --
 basically, anything with ``gcc``, ``make`` and so forth) as well as the Python
 development libraries, often named ``python-dev`` or similar.
 
-For **Windows** users we recommend either installing a C development environment
-such as `Cygwin <http://cygwin.com>`_ or obtaining a precompiled Win32 PyCrypto
-package from `voidspace's Python modules page
+For **Windows** users we recommend using :ref:`pypm`, installing a C
+development environment such as `Cygwin <http://cygwin.com>`_ or obtaining a
+precompiled Win32 PyCrypto package from `voidspace's Python modules page
 <http://www.voidspace.org.uk/python/modules.shtml#pycrypto>`_.
 
 Development dependencies
@@ -91,21 +91,28 @@ packages:
 
 .. _Mercurial: http://mercurial.selenic.com/wiki/
 
+.. _downloads:
+
 Downloads
 =========
 
 To obtain a tar.gz or zip archive of the Fabric source code, you may visit
 either of the following locations:
 
-* The official downloads are available via `git.fabfile.org
-  <http://git.fabfile.org>`_. Our Git repository viewer provides downloads of
+* The official downloads are located in Fabric's Redmine instance at
+  http://code.fabfile.org/projects/fabric/files/. This is the spot you want
+  to download from for operating system packages, as the only changing part of
+  the URL will be the filename itself and the md5 hashes will be consistent.
+* Our `Git repository viewer <http://git.fabfile.org>`_ provides downloads of
   all tagged releases. See the "Download" column, next to the "Tag" column in
-  the middle of the front page.
-* `Our GitHub mirror <http://github.com/bitprophet/fabric>`_ has downloads of
-  all tagged releases as well -- just click the 'Download' button near the top
-  of the main page.
+  the middle of the front page. Please note that due to how cgit generates tag
+  archives, the md5 sums will change over time, so use of this location for
+  package downloads is not recommended.
+* `Our GitHub mirror <http://github.com/bitprophet/fabric>`_ also has downloads
+  of all tagged releases -- just click the 'Download' button near the top of
+  the main page.
 * `Fabric's PyPI page <http://pypi.python.org/pypi/Fabric>`_ offers manual
-  downloads as well as being the entry point for :ref:`easy-install`.
+  downloads in addition to being the entry point for :ref:`easy-install`.
 
 .. _source-code-checkouts:
 
@@ -144,3 +151,25 @@ listed above (note, that's *development* requirements -- not necessary for
 simply using the software.) At time of writing, some of the listed third-party
 packages don't play well with ``pip``, so we aren't officially recommending use
 of the requirements file just yet.
+
+
+.. _pypm:
+
+ActivePython and PyPM
+=====================
+
+Windows users who already have ActiveState's `ActivePython
+<http://www.activestate.com/activepython>`_ distribution installed may find
+Fabric is best installed with its package manager, ``pypm``. Below is example
+output from an installation of Fabric 0.9.0 via ``pypm``::
+
+    C:\> pypm install fabric
+    Ready to perform these actions:
+    The following packages will be installed:
+    fabric-0.9.0 pycrypto-2.0.1
+    Get: [pypm.activestate.com] fabric 0.9.0-1
+    Get: [pypm.activestate.com] pycrypto 2.0.1-1
+    Installing fabric-0.9.0
+    Fixing script
+    C:\Users\<username>\AppData\Roaming\Python\Scripts\fab-script.py
+    Installing pycrypto-2.0.1

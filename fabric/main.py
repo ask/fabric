@@ -16,7 +16,7 @@ import sys
 
 from fabric import api # For checking callables against the API 
 from fabric.contrib import console, files, project # Ditto
-from fabric.network import denormalize, normalize
+from fabric.network import denormalize, interpret_host_string, disconnect_all
 from fabric import state # For easily-mockable access to roles, env and etc
 from fabric.state import commands, connections, env_options
 from fabric.utils import abort, indent
@@ -105,7 +105,11 @@ def is_task(tup):
 
 def load_fabfile(path):
     """
-    Import given fabfile path and return dictionary of its public callables.
+    Import given fabfile path and return (docstring, callables).
+
+    Specifically, the fabfile's ``__doc__`` attribute (a string) and a
+    dictionary of ``{'name': callable}`` containing all callables which pass
+    the "is a Fabric task" test.
     """
     # Get directory and fabfile name
     directory, fabfile = os.path.split(path)
@@ -137,12 +141,10 @@ def load_fabfile(path):
         del sys.path[0]
     # Return dictionary of callables only (and don't include Fab operations or
     # underscored callables)
-    return imported
-
+    return imported.__doc__, imported
 
 def load_fabfile_commands(fabfile_module):
     return dict(filter(is_task, vars(fabfile_module).items()))
-
 
 def parse_options():
     """
@@ -200,10 +202,15 @@ def parse_options():
     return parser, opts, args
 
 
-def list_commands():
+def list_commands(docstring):
     """
-    Print all found commands/tasks, then exit. Invoked with -l/--list.
+    Print all found commands/tasks, then exit. Invoked with ``-l/--list.``
+
+    If ``docstring`` is non-empty, it will be printed before the task list.
     """
+    if docstring:
+        trailer = "\n" if not docstring.endswith("\n") else ""
+        print(docstring + trailer)
     print("Available commands:\n")
     # Want separator between name, description to be straight col
     max_len = reduce(lambda a, b: max(a, len(b)), commands.keys(), 0)
@@ -412,6 +419,13 @@ def main():
             print("Fabric %s" % state.env.version)
             sys.exit(0)
 
+        # Handle case where we were called bare, i.e. just "fab", and print
+        # a help message.
+        if not (options.list_commands or options.display or arguments
+            or remainder_arguments):
+            parser.print_help()
+            sys.exit(1)
+
         # Load settings from user settings file, into shared env dict.
         state.env.update(load_settings(state.env.rcfile))
 
@@ -426,7 +440,7 @@ def main():
         # Load fabfile (which calls its module-level code, including
         # tweaks to env values) and put its commands in the shared commands
         # dict
-        fabfile_module = load_fabfile(fabfile)
+        docstring, fabfile_module = load_fabfile(fabfile)
         commands.update(load_fabfile_commands(fabfile_module))
 
         # Now that we're settled on a fabfile, inform user.
@@ -435,7 +449,7 @@ def main():
 
         # Handle list-commands option (now that commands are loaded)
         if options.list_commands:
-            list_commands()
+            list_commands(docstring)
 
         # Handle show (command-specific help) option
         if options.display:
@@ -477,13 +491,10 @@ def main():
                 command, cli_hosts, cli_roles)
             # If hosts found, execute the function on each host in turn
             for host in hosts:
-                username, hostname, port = normalize(host)
-                state.env.host_string = host
-                state.env.host = hostname
                 # Preserve user
                 prev_user = state.env.user
-                state.env.user = username
-                state.env.port = port
+                # Split host string and apply to env dict
+                username, hostname, port = interpret_host_string(host)
                 # Log to stdout
                 if state.output.running:
                     print("[%s] Executing task '%s'" % (host, name))
@@ -509,11 +520,5 @@ def main():
         # we might leave stale threads if we don't explicitly exit()
         sys.exit(1)
     finally:
-        # Explicitly disconnect from all servers
-        for key in connections.keys():
-            if state.output.status:
-                print "Disconnecting from %s..." % denormalize(key),
-            connections[key].close()
-            if state.output.status:
-                print "done."
+        disconnect_all()
     sys.exit(0)
