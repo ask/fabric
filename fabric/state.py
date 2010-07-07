@@ -221,6 +221,8 @@ class _EnvironmentDict(_AttributeDict):
     def _get_hosts(self):
 
         self._hosts = self.get("_hosts", [])
+        if not self.__finalized__:
+            return self._hosts
 
         if self.roles:
             role_hosts = (
@@ -234,6 +236,9 @@ class _EnvironmentDict(_AttributeDict):
         self._hosts = hosts
 
     hosts = property(_get_hosts, _set_hosts)
+
+    def finalize(self):
+        self.__finalized__ = True
 
 env = _EnvironmentDict({
     # Version number for --version
